@@ -23,11 +23,31 @@ import math
 # Utility Functions
 # =========================
 
+def normalize_belief(belief):
+    """
+    Return a validated probability distribution over candidate objects.
+
+    Accepts any non-empty mapping of object -> non-negative weight.
+    If weights do not sum to 1, they are normalized before use.
+    """
+    if not belief:
+        raise ValueError("belief must be a non-empty mapping of object probabilities")
+
+    if any(weight < 0 for weight in belief.values()):
+        raise ValueError("belief weights must be non-negative")
+
+    total = sum(belief.values())
+    if total <= 0:
+        raise ValueError("belief weights must sum to a positive value")
+
+    return {obj: weight / total for obj, weight in belief.items()}
+
 def entropy(belief):
     """
     Measures uncertainty in belief distribution.
     Higher entropy = more ambiguity
     """
+    belief = normalize_belief(belief)
     eps = 1e-9
     return -sum(p * math.log(p + eps) for p in belief.values() if p > 0)
 
@@ -36,6 +56,7 @@ def best_object(belief):
     """
     Returns most likely object (argmax)
     """
+    belief = normalize_belief(belief)
     return max(belief, key=belief.get)
 
 
@@ -43,6 +64,7 @@ def max_prob(belief):
     """
     Returns p* = max probability
     """
+    belief = normalize_belief(belief)
     return max(belief.values())
 
 
@@ -164,6 +186,8 @@ def explain_decision(
     """
     Returns detailed breakdown of decision for debugging or UI
     """
+
+    belief = normalize_belief(belief)
 
     p_star = max_prob(belief)
 

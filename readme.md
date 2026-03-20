@@ -200,6 +200,8 @@ This belief captures uncertainty explicitly.
 
 The robot does not need to know the true object with certainty. It only needs a calibrated estimate of how likely each candidate is.
 
+In the implementation, the policy layer validates this belief representation directly. It accepts any non-empty mapping from candidate objects to non-negative weights and normalizes those weights into a proper probability distribution before computing utilities. This keeps the decision logic mathematically consistent even if an upstream component provides unnormalized scores instead of already-calibrated probabilities.
+
 ---
 
 ## Why belief-state MDP is useful
