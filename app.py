@@ -15,6 +15,7 @@ from policy import (
     derived_threshold_policy,
     explain_decision,
 )
+from human_model import PROFILES, effective_ca
 
 POLICIES = {
     "Never Ask": never_ask_policy,
@@ -191,7 +192,31 @@ if "true_object" not in st.session_state:
 
 trial = st.session_state.trial
 
-policy_name = st.selectbox("Choose policy", list(POLICIES.keys()))
+sel_col1, sel_col2 = st.columns(2)
+
+with sel_col1:
+    policy_name = st.selectbox("Choose policy", list(POLICIES.keys()))
+
+with sel_col2:
+    profile_name = st.selectbox(
+        "Human profile",
+        list(PROFILES.keys()),
+        help="patient: tolerant of questions, low fatigue | busy: high baseline interruption cost | interruption_averse: cost grows rapidly with repeated asks",
+    )
+
+# --- Dynamic clarification cost ----------------------------------------------
+
+n_asks = sum(1 for h in st.session_state.history if h.get("action") == "ASK")
+dynamic_ca = effective_ca(profile_name, n_asks)
+
+profile_info = PROFILES[profile_name]
+st.info(
+    f"**Human profile:** {profile_name} | "
+    f"Ca_base = {profile_info['Ca_base']} | "
+    f"fatigue_rate = {profile_info['fatigue_rate']} | "
+    f"ASKs so far = {n_asks} | "
+    f"**Effective Ca = {dynamic_ca:.2f}**"
+)
 
 col1, col2 = st.columns(2)
 
@@ -280,15 +305,17 @@ if st.button("Run policy"):
         st.warning("Please type an instruction before running the policy.")
     else:
         policy_fn = POLICIES[policy_name]
-        action = policy_fn(trial["belief"])
+        action = policy_fn(trial["belief"], cost_ask=dynamic_ca)
         result = resolve_action(action, trial["belief"], st.session_state.true_object)
 
         st.session_state.history.append(
             {
                 "instruction": st.session_state.instruction,
                 "true_object": st.session_state.true_object,
+                "profile": profile_name,
                 "policy": policy_name,
                 "action": action,
+                "ca_used": round(dynamic_ca, 2),
                 "utility": result["utility"],
                 "correct": result["correct"],
                 "message": result["message"],
@@ -299,7 +326,10 @@ if st.button("Run policy"):
         st.write(result["message"])
 
         with st.expander("Decision breakdown"):
-            explanation = explain_decision(trial["belief"])
+            explanation = explain_decision(trial["belief"], cost_ask=dynamic_ca)
+            explanation["ca_used"] = round(dynamic_ca, 2)
+            explanation["profile"] = profile_name
+            explanation["n_asks"] = n_asks
             st.json(explanation)
 
         if action == "ASK":
@@ -309,28 +339,41 @@ if st.button("Run policy"):
             else:
                 answer = st.radio("Clarification answer", ask_options, index=0)
                 if st.button("Submit clarification"):
-                # Clarification is not a final retrieval action, so we do not mark this step as 'correct'.
+                    # Clarification is not a final retrieval action, so we do not mark this step as correct.
                     correct = None
-                utility = 10 if answer == st.session_state.true_object else -12
-                st.session_state.history.append(
-                    {
-                        "instruction": st.session_state.instruction,
-                        "true_object": st.session_state.true_object,
-                        "policy": policy_name,
-                        "action": f"ANSWER:{answer}",
-                        "utility": utility,
-                        "correct": correct,
-                        "message": f"User answered {answer}",
-                    }
-                )
-                st.write(f"Clarified target: {answer}")
-                st.write(f"Correct: {answer == st.session_state.true_object}")
+                    utility = 10 if answer == st.session_state.true_object else -12
+                    st.session_state.history.append(
+                        {
+                            "instruction": st.session_state.instruction,
+                            "true_object": st.session_state.true_object,
+                            "profile": profile_name,
+                            "policy": policy_name,
+                            "action": f"ANSWER:{answer}",
+                            "ca_used": round(dynamic_ca, 2),
+                            "utility": utility,
+                            "correct": correct,
+                            "message": f"User answered {answer}",
+                        }
+                    )
+                    st.write(f"Clarified target: {answer}")
+                    st.write(f"Correct: {answer == st.session_state.true_object}")
 
-if st.button("Next trial"):
-    st.session_state.trial = sample_trial()
-    st.session_state.true_object = st.session_state.trial["true_object"]
-    st.session_state.instruction = ""
-    st.rerun()
+nav_col1, nav_col2 = st.columns(2)
+
+with nav_col1:
+    if st.button("Next trial"):
+        st.session_state.trial = sample_trial()
+        st.session_state.true_object = st.session_state.trial["true_object"]
+        st.session_state.instruction = ""
+        st.rerun()
+
+with nav_col2:
+    if st.button("Reset session"):
+        st.session_state.history = []
+        st.session_state.trial = sample_trial()
+        st.session_state.true_object = st.session_state.trial["true_object"]
+        st.session_state.instruction = ""
+        st.rerun()
 
 st.markdown("### History")
 if st.session_state.history:
