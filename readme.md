@@ -514,6 +514,108 @@ then the cost-sensitive formulation still works, while the threshold shortcut ma
 
 ---
 
+## Human model
+
+So far, the clarification cost `Ca` has been treated as a fixed constant. In practice, the cost of asking a human depends on who the human is and how many times they have already been interrupted.
+
+This project extends the framework with a **human model** that makes `Ca` dynamic.
+
+---
+
+### Motivation
+
+A fixed `Ca` assumes every clarification request has the same cost to the human. But consider:
+
+- A **patient** user may not mind repeated questions.
+- A **busy** user finds even the first question disruptive.
+- An **interruption-averse** user becomes increasingly annoyed with each successive ask.
+
+To capture this, we introduce a **fatigue model** in which the effective clarification cost grows over the course of a session.
+
+---
+
+### Dynamic clarification cost
+
+The effective clarification cost at step `t` is defined as:
+
+$$
+Ca(t) = Ca_{\text{base}} + \text{fatigue\_rate} \times n_{\text{asks}}
+$$
+
+where:
+
+- `Ca_base` is the baseline cost of a single clarification request for this human
+- `fatigue_rate` is the additional cost added per prior interruption in the session
+- `n_asks` is the number of ASK actions the robot has already taken in the current session
+
+This means the robot pays a higher cost for each successive question it asks, which naturally discourages over-asking as the session progresses.
+
+---
+
+### Human profiles
+
+Three profiles are provided, each encoding a different tolerance for clarification:
+
+| Profile | `Ca_base` | `fatigue_rate` | Description |
+|---|---|---|---|
+| `patient` | 1.0 | 0.1 | Tolerant of questions; fatigue builds very slowly |
+| `busy` | 5.0 | 0.5 | High baseline cost; moderate fatigue growth |
+| `interruption_averse` | 3.0 | 1.5 | Moderate baseline, but cost grows rapidly with repeated asks |
+
+For example, with the `interruption_averse` profile after two prior asks:
+
+$$
+Ca(2) = 3.0 + 1.5 \times 2 = 6.0
+$$
+
+---
+
+### Effect on the decision policy
+
+The dynamic `Ca(t)` feeds directly into both the cost-sensitive and derived-threshold policies.
+
+**Expected utility of ASK** becomes session-dependent:
+
+$$
+Q(ASK, t) = -Ca(t)
+$$
+
+**Derived threshold** also changes with `t`:
+
+$$
+p^*(t) \ge \frac{Cw - Ca(t)}{Rc + Cw}
+$$
+
+As `Ca(t)` grows, `Q(ASK)` becomes more negative and the threshold for acting decreases. This means a robot that has already asked several times will prefer to act rather than ask again, even under moderate uncertainty. The policy adapts to the human's state without requiring any explicit human feedback beyond the profile selection.
+
+---
+
+### Worked example
+
+Suppose `Rc = 10`, `Cw = 12`, and the human profile is `interruption_averse` with `Ca_base = 3.0`, `fatigue_rate = 1.5`.
+
+**First ask (n_asks = 0):**
+
+$$
+Ca(0) = 3.0 + 1.5 \times 0 = 3.0
+$$
+$$
+\text{Derived threshold} = \frac{12 - 3.0}{10 + 12} = \frac{9}{22} \approx 0.409
+$$
+
+**After two prior asks (n_asks = 2):**
+
+$$
+Ca(2) = 3.0 + 1.5 \times 2 = 6.0
+$$
+$$
+\text{Derived threshold} = \frac{12 - 6.0}{10 + 12} = \frac{6}{22} \approx 0.273
+$$
+
+With a lower threshold, the robot becomes more willing to act even under uncertainty, because asking a third time is now very costly.
+
+---
+
 ## Experimental hypothesis
 
 We test the following central hypothesis:
@@ -608,7 +710,7 @@ This is important because modern HRI systems increasingly rely on language model
 
 ## Key contribution
 
-The project combines three elements:
+The project combines four elements:
 
 1. **LLM-based probabilistic language grounding**  
    The robot uses a language model to convert human instructions into a belief distribution over objects.
@@ -619,7 +721,10 @@ The project combines three elements:
 3. **Cost-sensitive clarification policy**  
    The robot decides whether to act or ask by maximizing expected utility.
 
-Together, these provide a simple but principled framework for interaction under uncertainty.
+4. **Human model with dynamic clarification cost**  
+   A fatigue model encodes how the cost of asking grows with repeated interruptions, parameterized by human profiles (patient, busy, interruption-averse). The policy adapts its ask threshold in real time as the session progresses.
+
+Together, these provide a simple but principled framework for interaction under uncertainty that is sensitive to both task costs and human state.
 
 ---
 
@@ -631,4 +736,6 @@ This project asks a simple but important question:
 
 I model the problem as a POMDP because the human's intended goal is hidden. I solve it as a belief-state MDP by maintaining a probability distribution over candidate objects. A language model provides the belief distribution from natural-language instructions. The robot then uses a cost-sensitive policy to compare the expected value of acting versus asking for clarification.
 
-This framework could be useful because it makes ambiguity explicit, grounds decisions in uncertainty, and connects robot behavior directly to task costs.
+The framework is extended with a human model that makes the clarification cost dynamic. Each human profile encodes a baseline interruption cost and a fatigue rate, so the effective cost of asking grows with the number of prior questions in a session. This causes the robot to ask less aggressively over time when interacting with an impatient or interruption-averse user, without requiring explicit feedback from the human.
+
+This framework could be useful because it makes ambiguity explicit, grounds decisions in uncertainty, connects robot behavior directly to task costs, and adapts to individual human tolerance for clarification.
