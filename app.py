@@ -283,7 +283,7 @@ with col2:
             trial["belief"][name] = 0.0
             st.session_state.trial = trial
             _update_belief_from_llm(trial)
-            st.experimental_rerun()
+            st.rerun()
 
     to_remove = st.multiselect(
         "Remove candidate objects",
@@ -335,22 +335,22 @@ if st.button("Run policy"):
             else:
                 answer = st.radio("Clarification answer", ask_options, index=0)
                 if st.button("Submit clarification"):
-                # Clarification is not a final retrieval action, so we do not mark this step as 'correct'.
+                    # Clarification is not a final retrieval action, so we do not mark this step as 'correct'.
                     correct = None
-                utility = 10 if answer == st.session_state.true_object else -12
-                st.session_state.history.append(
-                    {
-                        "instruction": st.session_state.instruction,
-                        "true_object": st.session_state.true_object,
-                        "policy": policy_name,
-                        "action": f"ANSWER:{answer}",
-                        "utility": utility,
-                        "correct": correct,
-                        "message": f"User answered {answer}",
-                    }
-                )
-                st.write(f"Clarified target: {answer}")
-                st.write(f"Correct: {answer == st.session_state.true_object}")
+                    utility = 10 if answer == st.session_state.true_object else -12
+                    st.session_state.history.append(
+                        {
+                            "instruction": st.session_state.instruction,
+                            "true_object": st.session_state.true_object,
+                            "policy": policy_name,
+                            "action": f"ANSWER:{answer}",
+                            "utility": utility,
+                            "correct": correct,
+                            "message": f"User answered {answer}",
+                        }
+                    )
+                    st.write(f"Clarified target: {answer}")
+                    st.write(f"Correct: {answer == st.session_state.true_object}")
 
 if st.button("Next trial"):
     st.session_state.trial = sample_trial()

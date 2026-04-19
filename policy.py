@@ -23,27 +23,50 @@ import math
 # Utility Functions
 # =========================
 
+def normalize_belief(belief):
+    """
+    Return a probability distribution over the same keys as ``belief``.
+
+    Raises ``ValueError`` if the belief is empty, contains a negative weight,
+    or has zero total weight.
+    """
+    if not belief:
+        raise ValueError("belief must contain at least one entry")
+
+    if any(v < 0 for v in belief.values()):
+        raise ValueError("belief weights must be non-negative")
+
+    total = sum(belief.values())
+    if total <= 0:
+        raise ValueError("belief weights must sum to a positive number")
+
+    return {k: v / total for k, v in belief.items()}
+
+
 def entropy(belief):
     """
     Measures uncertainty in belief distribution.
-    Higher entropy = more ambiguity
+    Higher entropy = more ambiguity.
+
+    Operates on a normalized copy of ``belief``.
     """
     eps = 1e-9
-    return -sum(p * math.log(p + eps) for p in belief.values() if p > 0)
+    normalized = normalize_belief(belief)
+    return -sum(p * math.log(p + eps) for p in normalized.values() if p > 0)
 
 
 def best_object(belief):
     """
-    Returns most likely object (argmax)
+    Returns most likely object (argmax).
     """
     return max(belief, key=belief.get)
 
 
 def max_prob(belief):
     """
-    Returns p* = max probability
+    Returns p* = max probability from the normalized belief.
     """
-    return max(belief.values())
+    return max(normalize_belief(belief).values())
 
 
 # =========================
@@ -72,14 +95,14 @@ def expected_utility_ask(cost_ask=2):
 
 def never_ask_policy(belief, **kwargs):
     """
-    Always act immediately
+    Always act immediately.
     """
     return "ACT"
 
 
 def always_ask_policy(belief, **kwargs):
     """
-    Always ask before acting
+    Always ask before acting.
     """
     return "ASK"
 
@@ -87,8 +110,8 @@ def always_ask_policy(belief, **kwargs):
 def threshold_policy(belief, threshold=0.75, **kwargs):
     """
     Heuristic baseline:
-    If confidence > threshold → ACT
-    else → ASK
+    If confidence > threshold -> ACT
+    else -> ASK
     """
     if max_prob(belief) >= threshold:
         return "ACT"
@@ -108,7 +131,7 @@ def cost_sensitive_policy(
     """
     Optimal policy in belief space:
 
-    π(b) = argmax_a Q(b, a)
+    pi(b) = argmax_a Q(b, a)
 
     Where:
     Q(ACT) = p* R_c - (1-p*) C_w
@@ -137,7 +160,7 @@ def derived_threshold_policy(
     cost_ask=2,
 ):
     """
-    Instead of arbitrary threshold, derive it from costs:
+    Instead of an arbitrary threshold, derive it from costs:
 
     p* >= (C_w - C_a) / (R_c + C_w)
     """
@@ -162,7 +185,7 @@ def explain_decision(
     cost_ask=2,
 ):
     """
-    Returns detailed breakdown of decision for debugging or UI
+    Returns detailed breakdown of decision for debugging or UI.
     """
 
     p_star = max_prob(belief)
