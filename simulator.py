@@ -1,30 +1,43 @@
+import copy
 import random
 
 OBJECTS = ["red mug", "blue mug", "bottle", "notebook"]
 
-TRIALS = [
+# Trial templates. ``true_object_choices`` is resolved freshly for every call
+# to ``sample_trial`` so the ground-truth object is not frozen at import time.
+TRIAL_TEMPLATES = [
     {
         "instruction": "get me the mug",
-        "true_object": random.choice(["red mug", "blue mug"]),
+        "true_object_choices": ["red mug", "blue mug"],
         "belief": {"red mug": 0.45, "blue mug": 0.45, "bottle": 0.05, "notebook": 0.05},
         "ask_options": ["red mug", "blue mug"],
     },
     {
         "instruction": "pass me the drink",
-        "true_object": random.choice(["red mug", "blue mug", "bottle"]),
+        "true_object_choices": ["red mug", "blue mug", "bottle"],
         "belief": {"red mug": 0.25, "blue mug": 0.25, "bottle": 0.45, "notebook": 0.05},
         "ask_options": ["bottle", "red mug", "blue mug"],
     },
     {
         "instruction": "get me the reading item",
-        "true_object": "notebook",
+        "true_object_choices": ["notebook"],
         "belief": {"red mug": 0.05, "blue mug": 0.05, "bottle": 0.10, "notebook": 0.80},
         "ask_options": ["notebook", "bottle"],
     },
 ]
 
+
 def sample_trial():
-    return random.choice(TRIALS)
+    """Return a fresh copy of a random trial with a freshly sampled true object."""
+    template = random.choice(TRIAL_TEMPLATES)
+    trial = {
+        "instruction": template["instruction"],
+        "true_object": random.choice(template["true_object_choices"]),
+        "belief": copy.deepcopy(template["belief"]),
+        "ask_options": list(template["ask_options"]),
+    }
+    return trial
+
 
 def resolve_action(action, belief, true_object, reward_correct=10, cost_wrong=12, cost_ask=2):
     if action == "ACT":
